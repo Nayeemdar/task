@@ -42,7 +42,7 @@ $button2Color: #460fec;
   display: flex;
   flex-wrap: wrap;
   flex-direction: row;
-  justify-content: space-between;
+  justify-content: center;
   margin-left: 5%;
   margin-right: 5%;
   margin-top: 2%;
@@ -60,6 +60,8 @@ $button2Color: #460fec;
   height: 300px;
  margin-top: 2%;
     padding-top: 2%;
+    margin-left: 5px;
+    margin-right: 5px;
   
 }
 
@@ -244,3 +246,29 @@ align-items: center;
 }
 
 
+
+/* users.scss */
+/* ... (previous styles) */
+
+/* Media query for screens with a maximum width of 768px (typical mobile devices) */
+@media (max-width: 668px) {
+  .cards {
+    flex-direction: column; /* Stack cards vertically on small screens */
+  }
+
+  .card {
+    width: 100%; /* Make cards full-width on small screens */
+  }
+
+  /* Center the pagination controls vertically on small screens */
+  .pagination {
+    align-items: center;
+  }
+
+  /* Center the page number buttons horizontally on small screens */
+  .page-numbers {
+    justify-content: center;
+  }
+}
+
+/* ... (remaining styles) */
