@@ -1,0 +1,26 @@
+$primary-color: rgba(30, 30, 30, 0.88);;
+
+
+.container{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: $primary-color;
+    padding-left: 5%;
+    padding-right: 5%;
+    
+}
+
+.logo h1{
+    color: #FFF;
+font-family: Roboto;
+font-size: 24px;
+font-style: normal;
+font-weight: 700;
+line-height: normal;
+text-transform: uppercase;
+}
+
+.avatar{
+ 
+}

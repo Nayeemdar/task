@@ -1,0 +1,246 @@
+//Defining Variables
+$button1Color: #f90000;
+$button2Color: #460fec;
+
+.container1 {
+  display: flex;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  margin-left: 5%;
+  margin-right: 5%;
+  margin-top: 2%;
+}
+
+.title {
+  font-family: Roboto;
+  font-size: 18px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: normal;
+  text-transform: uppercase;
+}
+
+.btn button {
+  width: 150px;
+  height: 50px;
+  border-radius: 10px;
+  background: #1677ff;
+  border: none;
+  color: #fff;
+  font-family: Roboto;
+  font-size: 15px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: normal;
+  text-transform: uppercase;
+}
+
+.cards {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: space-between;
+  margin-left: 5%;
+  margin-right: 5%;
+  margin-top: 2%;
+}
+
+.card {
+  display: flex;
+    flex-direction: column;
+  justify-content: space-between;
+  border-radius: 10px;
+  border: 1px solid #000;
+  background: #fcfcfc;
+  box-shadow: 2px 6px 4px 0px rgba(0, 0, 0, 0.25);
+  width: calc(33.33% - 20px);
+  height: 300px;
+ margin-top: 2%;
+    padding-top: 2%;
+  
+}
+
+
+
+.head h2{
+    color: #000;
+font-family: Roboto;
+font-size: 18px;
+font-style: normal;
+font-weight: 700;
+line-height: normal;
+text-transform: uppercase;
+margin-left: 5%;
+margin-top: 0;
+
+
+
+}
+
+.head{
+    display: flex;
+    justify-content: space-between;
+    flex-direction: row;
+    border-bottom:1px solid #000;
+}
+
+.avail{
+    margin-right: 5%;
+}
+
+.body{
+    display: flex;
+    flex-direction: row;
+padding-left: 5%;
+
+}
+
+.ques{
+    padding-right: 10%;
+    color: #000;
+font-family: Roboto;
+font-size: 15px;
+font-style: normal;
+font-weight: 400;
+line-height: normal;
+text-transform: uppercase;
+}
+.ans{
+color: #000;
+font-family: Roboto;
+font-size: 15px;
+font-style: normal;
+font-weight: 700;
+line-height: normal;
+text-transform: uppercase;
+}
+
+.foot{
+    display: flex;
+    justify-content: space-between;
+    padding: 2%;
+    border-top: 1px solid #000;
+}
+
+.foot button{
+    width: 80px;
+   color: #FFF;
+font-family: Roboto;
+font-size: 10px;
+font-style: normal;
+font-weight: 400;
+line-height: 17px; /* 106.25% */
+text-transform: uppercase;
+border-radius: 4px;
+border: none;
+}
+
+.btn1{
+   background-color:blue;
+}
+.btn2{
+    background-color:red;
+}
+
+.btn3{
+     background-color:blue;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center; /* Center the pagination controls horizontally */
+  align-items: center; /* Center the pagination controls vertically */
+  margin-top: 20px;
+}
+
+
+
+.prev-button,
+.next-button {
+  padding: 10px 20px;
+  margin: 0 10px;
+  color: #000;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+
+.page-numbers {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+}
+
+.page-number {
+  margin: 0 5px;
+  padding: 5px 10px;
+  color: #000;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.page-number:hover {
+  background-color: #0056b3;
+  color: #fff;
+}
+
+.page-range {
+  margin-left: 10px;
+  color: #333;
+  font-weight: bold;
+}
+
+.modal{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+   box-shadow: 2px 6px 4px 0px rgba(0, 0, 0, 0.25);
+margin-left: 30%;
+margin-right: 30%;
+margin-top: 10%;
+border-radius: 10px;
+
+}
+
+.modal-content{
+   display: flex;
+align-items: center;
+  flex-direction: column;
+  padding-bottom: 5%;
+
+}
+
+.modal-detail{
+  display: flex;
+  padding: 20px;
+}
+
+.modal-detail label{
+  margin-right: 10%;
+}
+
+.modal-content button{
+  width: 100px;
+  height: 30px;
+  border-radius: 10px;
+  background: #1677ff;
+  border: none;
+  color: #fff;
+  font-family: Roboto;
+  font-size: 15px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: normal;
+  text-transform: uppercase;
+}
+
+
