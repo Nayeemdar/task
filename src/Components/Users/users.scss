@@ -253,7 +253,9 @@ align-items: center;
 /* Media query for screens with a maximum width of 768px (typical mobile devices) */
 @media (max-width: 668px) {
   .cards {
-    flex-direction: column; /* Stack cards vertically on small screens */
+    flex-direction: column;
+    width: 100%;
+     /* Stack cards vertically on small screens */
   }
 
   .card {
