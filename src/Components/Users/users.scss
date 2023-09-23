@@ -254,12 +254,15 @@ align-items: center;
 @media (max-width: 668px) {
   .cards {
     flex-direction: column;
+    justify-content: center;
     width: 100%;
      /* Stack cards vertically on small screens */
   }
 
   .card {
-    width: 100%; /* Make cards full-width on small screens */
+    width: 100%;
+    display: flex;
+    flex-direction: column; /* Make cards full-width on small screens */
   }
 
   /* Center the pagination controls vertically on small screens */
