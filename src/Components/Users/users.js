@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Icon } from "@iconify/react";
 import "./users.scss";
@@ -31,7 +30,7 @@ const Users = () => {
 
   const handleAddUser = () => {
     setShowAddUserModal(true);
-    setSelectedUser(null); 
+    setSelectedUser(null);
   };
 
   const handleSaveUser = () => {
@@ -44,7 +43,7 @@ const Users = () => {
         const updatedUsers = [...usersList];
         updatedUsers[selectedUser] = newUser;
         setUsersList(updatedUsers);
-        setSelectedUser(null); 
+        setSelectedUser(null);
       }
       setNewUser({
         name: "",
@@ -139,19 +138,13 @@ const Users = () => {
               <div className="ans">{user.hobbies}</div>
             </div>
             <div className="foot">
-              <button
-                className="btn2"
-                onClick={() => handleDeleteUser(index)}
-              >
+              <button className="btn2" onClick={() => handleDeleteUser(index)}>
                 DELETE
               </button>
               <button className="btn1" onClick={() => handleEditUser(index)}>
                 EDIT
               </button>
-              <button
-                className="btn3"
-                onClick={() => handleViewUser(index)}
-              >
+              <button className="btn3" onClick={() => handleViewUser(index)}>
                 VIEW
               </button>
             </div>
@@ -164,64 +157,64 @@ const Users = () => {
           <div className="modal-content">
             <h2>{selectedUser !== null ? "Edit User" : "Add User"}</h2>
             <div className="modal-detail">
-            <label>Name:</label>
-            <input
-              type="text"
-              value={newUser.name}
-              onChange={(e) =>
-                setNewUser({ ...newUser, name: e.target.value })
-              }
-            />
+              <label>Name:</label>
+              <input
+                type="text"
+                value={newUser.name}
+                onChange={(e) =>
+                  setNewUser({ ...newUser, name: e.target.value })
+                }
+              />
             </div>
             <div className="modal-detail">
-            <label>Age:</label>
-            <input
-              type="text"
-              value={newUser.age}
-              onChange={(e) =>
-                setNewUser({ ...newUser, age: e.target.value })
-              }
-            />
+              <label>Age:</label>
+              <input
+                type="text"
+                value={newUser.age}
+                onChange={(e) =>
+                  setNewUser({ ...newUser, age: e.target.value })
+                }
+              />
             </div>
             <div className="modal-detail">
-            <label>DOB:</label>
-            <input
-              type="text"
-              value={newUser.dob}
-              onChange={(e) =>
-                setNewUser({ ...newUser, dob: e.target.value })
-              }
-            />
+              <label>DOB:</label>
+              <input
+                type="text"
+                value={newUser.dob}
+                onChange={(e) =>
+                  setNewUser({ ...newUser, dob: e.target.value })
+                }
+              />
             </div>
             <div className="modal-detail">
-            <label>Gender:</label>
-            <input
-              type="text"
-              value={newUser.gender}
-              onChange={(e) =>
-                setNewUser({ ...newUser, gender: e.target.value })
-              }
-            />
+              <label>Gender:</label>
+              <input
+                type="text"
+                value={newUser.gender}
+                onChange={(e) =>
+                  setNewUser({ ...newUser, gender: e.target.value })
+                }
+              />
             </div>
             <div className="modal-detail">
-            <label>Food:</label>
-            <input
-              type="text"
-              value={newUser.food}
-              onChange={(e) =>
-                setNewUser({ ...newUser, food: e.target.value })
-              }
-            />
+              <label>Food:</label>
+              <input
+                type="text"
+                value={newUser.food}
+                onChange={(e) =>
+                  setNewUser({ ...newUser, food: e.target.value })
+                }
+              />
             </div>
             <div className="modal-detail">
-            <label>Hobbies:</label>
-            <input
-              type="text"
-              value={newUser.hobbies}
-              onChange={(e) =>
-                setNewUser({ ...newUser, hobbies: e.target.value })
-              }
-            />
+              <label>Hobbies:</label>
+              <input
+                type="text"
+                value={newUser.hobbies}
+                onChange={(e) =>
+                  setNewUser({ ...newUser, hobbies: e.target.value })
+                }
+              />
             </div>
             <button onClick={handleSaveUser}>Save</button>
           </div>
@@ -236,7 +229,7 @@ const Users = () => {
                 className="prev-button"
                 onClick={() => setCurrentPage(currentPage - 1)}
               >
-              <Icon icon="ic:outline-arrow-back" />
+                <Icon icon="ic:outline-arrow-back" />
               </button>
             )}
             <ul className="page-numbers">{renderPageNumbers}</ul>
@@ -244,7 +237,9 @@ const Users = () => {
               <button
                 className="next-button"
                 onClick={() => setCurrentPage(currentPage + 1)}
-              >   <Icon icon="material-symbols:arrow-forward"   />
+              >
+                {" "}
+                <Icon icon="material-symbols:arrow-forward" />
               </button>
             )}
           </>
@@ -258,25 +253,23 @@ const Users = () => {
             <div className="body">
               <div className="ques">AGE:</div>
               <div className="ans">{usersList[selectedUser].age}</div>
-              </div>
-              <div className="body">
+            </div>
+            <div className="body">
               <div className="ques">DOB:</div>
               <div className="ans">{usersList[selectedUser].dob}</div>
-              </div>
-              <div className="body">
+            </div>
+            <div className="body">
               <div className="ques">GENDER:</div>
-                 <div className="ans">{usersList[selectedUser].gender}</div>
-                 </div>
-                  <div className="body">
-                  <div className="ques">FOOD:</div>
-                  <div className="ans">{usersList[selectedUser].food}</div>
-                  </div>
-                  <div className="body">
-                  <div className="ques">HOBBIES:</div>
-                  <div className="ans">{usersList[selectedUser].hobbies}</div>
-                  </div>
-              
-
+              <div className="ans">{usersList[selectedUser].gender}</div>
+            </div>
+            <div className="body">
+              <div className="ques">FOOD:</div>
+              <div className="ans">{usersList[selectedUser].food}</div>
+            </div>
+            <div className="body">
+              <div className="ques">HOBBIES:</div>
+              <div className="ans">{usersList[selectedUser].hobbies}</div>
+            </div>
           </div>
         </div>
       )}
