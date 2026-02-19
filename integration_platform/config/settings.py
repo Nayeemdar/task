@@ -16,9 +16,12 @@ class Settings(BaseSettings):
     DEBUG: bool = Field(False, env="DEBUG")
     SECRET_KEY: str = Field("change-me-in-production", env="SECRET_KEY")
 
-    # ─── Database ─────────────────────────────────────────────────────────────
+    # ─── Database — Azure SQL Database (single) ───────────────────────────────
+    # Format: mssql+aioodbc://<user>:<password>@<server>.database.windows.net:1433/<db>
+    #         ?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no
     DATABASE_URL: str = Field(
-        "postgresql+asyncpg://postgres:postgres@localhost:5432/integration_platform",
+        "mssql+aioodbc://sa:YourPassword@localhost:1433/integration_platform"
+        "?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=no&TrustServerCertificate=yes",
         env="DATABASE_URL"
     )
 
