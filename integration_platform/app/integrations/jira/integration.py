@@ -196,6 +196,35 @@ class JiraIntegration(BaseIntegration):
         data = resp.json()
         return ActionResult.ok({"projects": data.get("values", [])})
 
+    @action(
+        description="Get all direct child issues of a parent issue (Initiative → Epics, Epic → Stories, etc.)",
+        input_schema={
+            "parent_key": "string — e.g. INIT-123",
+            "max_results": "integer (optional, default 100)",
+        },
+    )
+    async def get_child_issues(self, payload: Dict) -> ActionResult:
+        """
+        Uses JQL `parent = {key}` which covers next-gen projects and company-managed
+        projects with the Jira hierarchy (Initiatives → Epics → Stories).
+        Also returns `all_done` — True only when every child's statusCategory is 'done'.
+        """
+        parent_key = payload["parent_key"]
+        jql = f"parent = {parent_key} ORDER BY created ASC"
+        result = await self.search_issues({"jql": jql, "max_results": payload.get("max_results", 100)})
+        if not result.success:
+            return result
+        issues = result.data.get("issues", [])
+        all_done = (
+            all(
+                i.get("fields", {}).get("status", {}).get("statusCategory", {}).get("key") == "done"
+                for i in issues
+            )
+            if issues
+            else False
+        )
+        return ActionResult.ok({"issues": issues, "total": len(issues), "all_done": all_done})
+
     # ── Triggers ──────────────────────────────────────────────────────────────
 
     @trigger(
@@ -221,3 +250,61 @@ class JiraIntegration(BaseIntegration):
     )
     async def on_webhook(self, context: Dict) -> TriggerResult:
         return TriggerResult(events=[context], has_more=False)
+
+    @trigger(
+        description=(
+            "Fires when a Jira Initiative reaches Done status AND every direct child issue "
+            "is also in a Done status category.  Use this to trigger downstream actions "
+            "(e.g. closing a linked Salesforce Case) only when the full initiative is complete."
+        ),
+        trigger_type=TriggerType.POLLING,
+        poll_interval_seconds=300,
+    )
+    async def on_initiative_fully_closed(self, context: Dict) -> TriggerResult:
+        """
+        Poll logic:
+          1. Find Initiatives whose status category is Done and that were updated since
+             the last poll (cursor = ISO timestamp of the latest initiative seen).
+          2. For each, fetch all direct children via get_child_issues().
+          3. Emit an event ONLY when there is at least one child and ALL children are Done.
+
+        Event payload fields available to workflow steps:
+          trigger.initiative_key       — e.g. "PROJ-42"
+          trigger.initiative_summary   — human-readable title
+          trigger.children_count       — how many child issues were checked
+          trigger.initiative           — full Jira issue object
+        """
+        since = context.get("cursor") or context.get("since", "")
+
+        jql_parts = ["issuetype = Initiative", "statusCategory = Done"]
+        if since:
+            jql_parts.append(f"updated >= '{since}'")
+        jql = " AND ".join(jql_parts) + " ORDER BY updated ASC"
+
+        result = await self.search_issues({"jql": jql, "max_results": 50})
+        if not result.success:
+            return TriggerResult(events=[], cursor=since)
+
+        initiatives = result.data.get("issues", [])
+        fully_closed: List[Dict] = []
+
+        for initiative in initiatives:
+            key = initiative["key"]
+            children_result = await self.get_child_issues({"parent_key": key, "max_results": 200})
+            if not children_result.success:
+                logger.warning("Could not fetch children for %s — skipping", key)
+                continue
+
+            children_data = children_result.data
+            # Guard: require at least one child AND every child must be done
+            if children_data.get("total", 0) > 0 and children_data.get("all_done"):
+                fully_closed.append({
+                    "initiative_key": key,
+                    "initiative_summary": initiative["fields"]["summary"],
+                    "initiative": initiative,
+                    "children_count": children_data["total"],
+                })
+
+        # Advance cursor to the updated timestamp of the last initiative we inspected
+        cursor = initiatives[-1]["fields"]["updated"] if initiatives else since
+        return TriggerResult(events=fully_closed, cursor=cursor, has_more=len(initiatives) == 50)

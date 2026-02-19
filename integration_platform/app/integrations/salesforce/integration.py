@@ -250,6 +250,60 @@ class SalesforceIntegration(BaseIntegration):
         return await self.query({"query": soql})
 
     @action(
+        description=(
+            "Find an open Salesforce Case by a custom field lookup and close it. "
+            "Designed for cross-system automation: e.g. close the Case whose "
+            "Jira_Initiative_Key__c matches a completed Jira Initiative key."
+        ),
+        input_schema={
+            "lookup_field": "string — Salesforce API field name, e.g. Jira_Initiative_Key__c",
+            "lookup_value": "string — value to match",
+            "close_status": "string (optional, default 'Closed') — Status value to set",
+        },
+    )
+    async def close_case_by_field(self, payload: Dict) -> ActionResult:
+        """
+        1. Runs SOQL: SELECT Id, CaseNumber FROM Case WHERE {field} = '{value}' AND IsClosed = false
+        2. If a match exists, PATCHes Status to close_status (default 'Closed').
+        3. Returns closed=True/False so the workflow can branch on the result.
+
+        Prerequisite: the Case object must have the lookup field (e.g. Jira_Initiative_Key__c)
+        created as a Text custom field in Salesforce Setup → Object Manager → Case → Fields.
+        Mark it as an External ID for efficient indexed lookups.
+        """
+        field = payload["lookup_field"]
+        value = payload["lookup_value"]
+        status = payload.get("close_status", "Closed")
+
+        soql = (
+            f"SELECT Id, CaseNumber, Status FROM Case "
+            f"WHERE {field} = '{value}' AND IsClosed = false "
+            f"LIMIT 1"
+        )
+        query_result = await self.query({"query": soql})
+        if not query_result.success:
+            return query_result
+
+        records = query_result.data.get("records", [])
+        if not records:
+            return ActionResult.ok({
+                "closed": False,
+                "reason": f"No open Case found where {field} = '{value}'",
+            })
+
+        case_id = records[0]["Id"]
+        case_number = records[0].get("CaseNumber", "")
+        update_result = await self.update_record({
+            "object_type": "Case",
+            "record_id": case_id,
+            "fields": {"Status": status},
+        })
+        if not update_result.success:
+            return update_result
+
+        return ActionResult.ok({"closed": True, "case_id": case_id, "case_number": case_number, "status": status})
+
+    @action(
         description="Subscribe to a Salesforce Platform Event channel (returns subscription URL)",
         input_schema={"channel": "string — e.g. /event/MyEvent__e"},
     )

@@ -18,6 +18,10 @@
 .env.test.local
 .env.production.local
 
+# Azure Functions — local settings contain secrets; never commit
+integration_platform/local.settings.json
+integration_platform/.env
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

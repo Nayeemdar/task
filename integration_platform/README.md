@@ -4,19 +4,21 @@ A production-ready **FastAPI**-based integration platform that replaces Workato.
 
 ---
 
-## Architecture Diagram Improvements (vs. Proposed Design)
+## Architecture
 
-| Proposed | Implemented / Improved |
+| Concern | Implementation |
 |---|---|
-| Azure Functions as cloud endpoint | FastAPI app — cheaper, no cold starts, full control |
-| No explicit plugin model | **BaseIntegration class** — add one method = new feature, zero infra changes |
-| No workflow/recipe engine | **WorkflowEngine** — Workato-style multi-step recipes with data mapping |
-| No retry/circuit breaker | **RetryHandler** with exponential backoff + circuit breaker per service |
-| No event replay | **EventBus + DB audit log** — any event can be replayed via API |
-| Single webhook URL implied | **Per-service + per-trigger webhook routing** |
-| No test/dry-run mode | `dry_run=true` on every action call |
-| No data mapping layer | **DataMapper** — `{{field | transform}}` template expressions |
-| Polling assumed manual | **PollingService** — auto-schedules every `@trigger(type=POLLING)` method |
+| **HTTP entrypoint** | Azure Function App — HTTP trigger wraps FastAPI via `AsgiMiddleware` |
+| **Polling scheduler** | Azure Functions Timer Trigger — fires every 5 min, no always-on process needed |
+| **Plugin model** | **BaseIntegration class** — add one method = new feature, zero infra changes |
+| **Workflow/recipe engine** | **WorkflowEngine** — Workato-style multi-step recipes with data mapping |
+| **Retry / circuit breaker** | **RetryHandler** with exponential backoff + circuit breaker per service |
+| **Event replay** | **EventBus + DB audit log** — any event can be replayed via API |
+| **Webhook routing** | Per-service + per-trigger webhook routing |
+| **Test/dry-run mode** | `dry_run=true` on every action call |
+| **Data mapping** | **DataMapper** — `{{field \| transform}}` template expressions |
+| **Secrets** | Azure Key Vault — loaded at startup, cached in-process |
+| **Observability** | OpenTelemetry → Azure Application Insights |
 
 ---
 
@@ -139,17 +141,107 @@ GET /api/v1/health/polling Polling job status
 
 ---
 
-## Quick Start
+## Quick Start — Local Development
 
 ```bash
-cp .env.example .env
-# Edit .env with your credentials
+# 1. Install Azure Functions Core Tools (v4)
+npm install -g azure-functions-core-tools@4
 
-docker-compose up -d
+# 2. Copy and fill in credentials
+cp local.settings.json.example local.settings.json   # or just edit local.settings.json
 
-# API docs
-open http://localhost:8000/docs
+# 3. Start a local Postgres (if not already running)
+docker-compose up -d db
+
+# 4. Run locally via Azure Functions Core Tools
+cd integration_platform
+func start
+
+# API docs (served through Azure Functions HTTP trigger)
+open http://localhost:7071/docs
 ```
+
+The `func start` command loads `local.settings.json` as environment variables,
+starts the Azure Functions host, and serves both the HTTP trigger and the
+Timer Trigger locally.
+
+---
+
+## Deploy to Azure Function App
+
+### Prerequisites
+
+- Azure Function App (Linux, Python 3.12)
+- Azure Container Registry (for custom container deployments) OR
+  zip-deploy via `func azure functionapp publish`
+
+### Option A — Zip deploy (simplest)
+
+```bash
+cd integration_platform
+
+# Publish directly from local source
+func azure functionapp publish <YOUR_FUNCTION_APP_NAME> --python
+```
+
+### Option B — Container deploy
+
+```bash
+# Build and push to ACR
+az acr build \
+  --registry <YOUR_ACR_NAME> \
+  --image integration-platform:latest \
+  .
+
+# Configure the Function App to use the container
+az functionapp config container set \
+  --name <YOUR_FUNCTION_APP_NAME> \
+  --resource-group <YOUR_RG> \
+  --docker-custom-image-name <YOUR_ACR_NAME>.azurecr.io/integration-platform:latest
+```
+
+### Application Settings (replace `.env` values)
+
+Set all keys from `local.settings.json → Values` as **Application Settings**
+in the Azure Portal (Function App → Configuration → Application settings), or
+via CLI:
+
+```bash
+az functionapp config appsettings set \
+  --name <YOUR_FUNCTION_APP_NAME> \
+  --resource-group <YOUR_RG> \
+  --settings \
+    DATABASE_URL="postgresql+asyncpg://..." \
+    AZURE_SERVICE_BUS_CONNECTION_STRING="Endpoint=sb://..." \
+    AZURE_KEY_VAULT_URL="https://your-vault.vault.azure.net/" \
+    SALESFORCE_CLIENT_ID="..." \
+    # ... (see local.settings.json for full list)
+```
+
+> **Note:** `FUNCTIONS_WORKER_RUNTIME=python` and `AzureWebJobsStorage` are
+> set automatically by Azure when you create a Python Function App.
+
+---
+
+## Azure Functions — How It Works
+
+```
+HTTP request
+  └─► http_trigger (function_app.py)
+        └─► AsgiMiddleware(fastapi_app)
+              └─► FastAPI router → integration action / webhook / workflow
+
+Timer (every 5 min)
+  └─► polling_timer (function_app.py)
+        └─► PollingService.poll_all_once()
+              └─► calls every @trigger(type=POLLING) across all integrations
+                    └─► publishes events → EventBus → Azure Service Bus
+```
+
+The FastAPI `lifespan` still runs on first HTTP request (initialises DB,
+Key Vault, registry, EventBus, Service Bus bridge). When `FUNCTIONS_WORKER_RUNTIME`
+is detected, the **in-process asyncio polling loops are skipped** — the Timer
+Trigger drives polling instead.
 
 ---
 
@@ -157,15 +249,20 @@ open http://localhost:8000/docs
 
 ```
 integration_platform/
+├── function_app.py            # Azure Functions v2 entry point
+│                              #   http_trigger  — ASGI wrapper for FastAPI
+│                              #   polling_timer — Timer Trigger (every 5 min)
+├── host.json                  # Azure Functions host configuration
+├── local.settings.json        # Local dev settings (never commit real secrets)
 ├── app/
-│   ├── main.py                    # FastAPI app + lifespan
+│   ├── main.py                # FastAPI app + lifespan (Azure-aware)
 │   ├── core/
 │   │   ├── base_integration.py    # Abstract base — @action / @trigger decorators
 │   │   ├── registry.py            # Auto-discovery + single dispatch entry point
 │   │   ├── event_bus.py           # Async pub/sub — wildcard topic support
 │   │   ├── workflow_engine.py     # Recipe execution + {{template}} data mapping
 │   │   ├── data_mapper.py         # Field-level transforms
-│   │   ├── polling_service.py     # Background polling scheduler
+│   │   ├── polling_service.py     # poll_all_once() used by Timer Trigger
 │   │   └── retry_handler.py       # Exponential backoff + circuit breaker
 │   ├── infrastructure/
 │   │   ├── service_bus.py         # Azure Service Bus bridge
@@ -188,8 +285,7 @@ integration_platform/
 │   │   └── schemas.py             # Pydantic v2 request/response schemas
 │   └── db/session.py              # Async session factory
 ├── config/settings.py             # Pydantic Settings — all env vars
-├── requirements.txt
-├── Dockerfile
-├── docker-compose.yml
-└── .env.example
+├── requirements.txt               # Includes azure-functions>=1.21
+├── Dockerfile                     # Azure Functions Python 4 runtime image
+└── docker-compose.yml             # Local DB only (functions run via func start)
 ```

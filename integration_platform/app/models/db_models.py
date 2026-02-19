@@ -1,5 +1,5 @@
 """
-SQLAlchemy ORM models — stored in PostgreSQL (CRDB compatible).
+SQLAlchemy ORM models — stored in Azure SQL Database (single database).
 
 Tables:
   integration_events   — audit log of every inbound/outbound event
@@ -23,8 +23,8 @@ from sqlalchemy import (
     JSON,
     String,
     Text,
+    Uuid,          # generic across all dialects (SQLAlchemy 2.0+)
 )
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase
 
 
@@ -39,7 +39,7 @@ class Base(DeclarativeBase):
 class IntegrationEventModel(Base):
     __tablename__ = "integration_events"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id = Column(String(64), unique=True, nullable=False, index=True)
     event_type = Column(String(128), nullable=False, index=True)
     service_name = Column(String(64), nullable=False, index=True)
@@ -62,7 +62,7 @@ class IntegrationEventModel(Base):
 class WorkflowDefinitionModel(Base):
     __tablename__ = "workflow_definitions"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     workflow_id = Column(String(64), unique=True, nullable=False)
     name = Column(String(256), nullable=False)
     description = Column(Text, default="")
@@ -77,7 +77,7 @@ class WorkflowDefinitionModel(Base):
 class WorkflowRunModel(Base):
     __tablename__ = "workflow_runs"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     run_id = Column(String(64), unique=True, nullable=False)
     workflow_id = Column(String(64), nullable=False, index=True)
     status = Column(String(16), nullable=False, default="pending")
@@ -118,7 +118,7 @@ class ConnectionModel(Base):
 
     __tablename__ = "connections"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(256), nullable=False)
     service_name = Column(String(64), nullable=False, index=True)
     is_active = Column(Boolean, default=True)

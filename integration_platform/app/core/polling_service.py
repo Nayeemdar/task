@@ -135,6 +135,28 @@ class PollingService:
         if result.cursor:
             job.last_cursor = result.cursor
 
+    # ── One-shot poll (Azure Functions Timer Trigger) ──────────────────────────
+
+    async def poll_all_once(self) -> None:
+        """
+        Run one poll cycle for every registered polling trigger.
+
+        Called by the Azure Functions Timer Trigger in function_app.py instead of
+        the continuous asyncio loops used in Docker/uvicorn mode.
+        """
+        self._discover_polling_triggers()
+        if not self._jobs:
+            logger.info("poll_all_once: no polling jobs registered")
+            return
+
+        results = await asyncio.gather(
+            *[self._poll_once(job) for job in self._jobs.values()],
+            return_exceptions=True,
+        )
+        for key, result in zip(self._jobs.keys(), results):
+            if isinstance(result, Exception):
+                logger.error("poll_all_once error (%s): %s", key, result)
+
     # ── Status ────────────────────────────────────────────────────────────────
 
     def get_status(self) -> Dict:

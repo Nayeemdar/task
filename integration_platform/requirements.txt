@@ -1,6 +1,9 @@
+# ── Azure Functions runtime ────────────────────────────────────────────────────
+azure-functions==1.21.3          # Azure Functions Python worker (ASGI middleware)
+
 # ── Web Framework ─────────────────────────────────────────────────────────────
 fastapi==0.111.0
-uvicorn[standard]==0.29.0
+uvicorn[standard]==0.29.0        # used for local dev only (func start uses its own server)
 python-multipart==0.0.9
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -10,9 +13,10 @@ pydantic-settings==2.2.1
 # ── HTTP client ───────────────────────────────────────────────────────────────
 httpx==0.27.0
 
-# ── Database ──────────────────────────────────────────────────────────────────
+# ── Database — Azure SQL Database (single) ────────────────────────────────────
 sqlalchemy[asyncio]==2.0.30
-asyncpg==0.29.0
+pyodbc==5.1.0           # ODBC bridge for SQL Server (requires ODBC Driver 18 in image)
+aioodbc==0.5.0          # asyncio wrapper around pyodbc → mssql+aioodbc:// dialect
 alembic==1.13.1
 
 # ── Azure ─────────────────────────────────────────────────────────────────────
