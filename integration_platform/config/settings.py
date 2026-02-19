@@ -16,13 +16,26 @@ class Settings(BaseSettings):
     DEBUG: bool = Field(False, env="DEBUG")
     SECRET_KEY: str = Field("change-me-in-production", env="SECRET_KEY")
 
-    # ─── Database — Azure SQL Database (single) ───────────────────────────────
+    # ─── Database — CRDB/ERDB (operational) ──────────────────────────────────
+    # On-prem operational database: polling_cursors, workflow_runs,
+    # workflow_definitions, connections.
     # Format: mssql+aioodbc://<user>:<password>@<server>.database.windows.net:1433/<db>
     #         ?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no
     DATABASE_URL: str = Field(
         "mssql+aioodbc://sa:YourPassword@localhost:1433/integration_platform"
         "?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=no&TrustServerCertificate=yes",
         env="DATABASE_URL"
+    )
+
+    # ─── Database — BizOps Events (audit log) ────────────────────────────────
+    # Separate on-prem database for the append-only audit event log.
+    # Written by EventProcessor (on_prem/event_processor.py).
+    # Queried by BizOps / Ops teams and Grafana dashboards.
+    # Never touched during workflow execution — isolated from CRDB/ERDB.
+    BIZOPS_DATABASE_URL: str = Field(
+        "mssql+aioodbc://sa:YourPassword@localhost:1433/bizops_events"
+        "?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=no&TrustServerCertificate=yes",
+        env="BIZOPS_DATABASE_URL"
     )
 
     # ─── Azure Service Bus ────────────────────────────────────────────────────
