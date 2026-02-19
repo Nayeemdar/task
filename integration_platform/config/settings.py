@@ -94,6 +94,13 @@ class Settings(BaseSettings):
     CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = Field(5, env="CIRCUIT_BREAKER_FAILURE_THRESHOLD")
     CIRCUIT_BREAKER_RECOVERY_TIMEOUT: int = Field(60, env="CIRCUIT_BREAKER_RECOVERY_TIMEOUT")
 
+    # ─── On-Prem Metrics / Health Server ─────────────────────────────────────
+    # HealthServer binds to METRICS_HOST:METRICS_PORT and serves:
+    #   GET /health   → JSON status
+    #   GET /metrics  → Prometheus exposition format (scraped by Prometheus)
+    METRICS_HOST: str = Field("0.0.0.0", env="METRICS_HOST")
+    METRICS_PORT: int = Field(9090, env="METRICS_PORT")
+
     # ─── Webhook Security ─────────────────────────────────────────────────────
     WEBHOOK_SIGNATURE_HEADER: str = "X-Hub-Signature-256"
     WEBHOOK_SECRET: str = Field("change-me", env="WEBHOOK_SECRET")

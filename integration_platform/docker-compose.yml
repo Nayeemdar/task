@@ -1,8 +1,73 @@
 version: "3.9"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Integration Platform — local development stack
+#
+# Services
+# ────────
+#   db          — SQL Server 2022 (mirrors Azure SQL Database locally)
+#   api         — FastAPI cloud-side app (Azure Functions equivalent, local)
+#   on_prem     — On-premise process (ServiceBus consumer + polling + workflows)
+#   prometheus  — Prometheus metrics scraper
+#   grafana     — Grafana dashboards (pre-provisioned)
+#   sqlpad      — lightweight SQL query UI (optional, profile: tools)
+#
+# Quick start
+# ───────────
+#   docker compose up -d db
+#   docker compose up -d api on_prem prometheus grafana
+#
+# With optional SQL UI:
+#   docker compose --profile tools up -d
+# ─────────────────────────────────────────────────────────────────────────────
+
 services:
 
-  # ─── Integration Platform API ─────────────────────────────────────────────
+  # ─── Azure SQL Database (local mirror via SQL Server 2022) ─────────────────
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "YourStrong@Passw0rd"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    healthcheck:
+      # /opt/mssql-tools18/bin/sqlcmd is the default path in SQL Server 2022 image
+      test:
+        - "CMD-SHELL"
+        - >
+          /opt/mssql-tools18/bin/sqlcmd
+          -S localhost -U sa -P "YourStrong@Passw0rd"
+          -No -C -Q "SELECT 1" > /dev/null 2>&1
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  # ─── Database init — create both databases once on first run ───────────────
+  db_init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MSSQL_SA_PASSWORD: "YourStrong@Passw0rd"
+    # Creates integration_platform and bizops_events databases if they don't exist.
+    command: >
+      /bin/bash -c "
+        /opt/mssql-tools18/bin/sqlcmd -S db -U sa -P \"YourStrong@Passw0rd\" -No -C -Q \"
+          IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'integration_platform')
+            CREATE DATABASE integration_platform;
+          IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'bizops_events')
+            CREATE DATABASE bizops_events;
+        \"
+      "
+    restart: "no"
+
+  # ─── Integration Platform API (cloud-side FastAPI) ─────────────────────────
   api:
     build:
       context: .
@@ -10,7 +75,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/integration_platform
+      - DATABASE_URL=mssql+aioodbc://sa:YourStrong@Passw0rd@db:1433/integration_platform?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=no&TrustServerCertificate=yes
+      - BIZOPS_DATABASE_URL=mssql+aioodbc://sa:YourStrong@Passw0rd@db:1433/bizops_events?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=no&TrustServerCertificate=yes
       - ENVIRONMENT=development
       - DEBUG=true
       - POLLING_DEFAULT_INTERVAL_SECONDS=60
@@ -19,6 +85,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      db_init:
+        condition: service_completed_successfully
     volumes:
       - .:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -28,34 +96,103 @@ services:
       timeout: 5s
       retries: 5
 
-  # ─── PostgreSQL (CRDB-compatible schema) ─────────────────────────────────
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: integration_platform
+  # ─── On-Premise Integration Process ───────────────────────────────────────
+  # Mirrors what runs on Windows Server on-prem:
+  #   • Pulls from Azure Service Bus
+  #   • Runs PollingService (polls Jira, Salesforce, UKG …)
+  #   • EventProcessor writes audit rows → bizops_events DB
+  #   • WorkflowEngine executes workflow recipes
+  #   • Exposes /health and /metrics on port 9090
+  on_prem:
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "5432:5432"
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-  # ─── pgAdmin (optional UI) ────────────────────────────────────────────────
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    profiles: ["tools"]
+      - "9090:9090"   # Prometheus /metrics + /health
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@local.dev
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "5050:80"
+      - DATABASE_URL=mssql+aioodbc://sa:YourStrong@Passw0rd@db:1433/integration_platform?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=no&TrustServerCertificate=yes
+      - BIZOPS_DATABASE_URL=mssql+aioodbc://sa:YourStrong@Passw0rd@db:1433/bizops_events?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=no&TrustServerCertificate=yes
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - POLLING_DEFAULT_INTERVAL_SECONDS=60
+      - METRICS_PORT=9090
+      - METRICS_HOST=0.0.0.0
+    env_file:
+      - .env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      db_init:
+        condition: service_completed_successfully
+    volumes:
+      - .:/app
+    command: python -m app.on_prem.main
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ─── Prometheus ────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    ports:
+      - "9091:9090"   # host 9091 (on_prem occupies 9090 on host)
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    depends_on:
+      - on_prem
+    restart: unless-stopped
+
+  # ─── Grafana ───────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.2
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # ─── SQLPad (optional SQL query UI, profile: tools) ───────────────────────
+  sqlpad:
+    image: sqlpad/sqlpad:latest
+    profiles: ["tools"]
+    ports:
+      - "3100:3000"
+    environment:
+      - SQLPAD_ADMIN=admin@local.dev
+      - SQLPAD_ADMIN_PASSWORD=admin
+      - SQLPAD_APP_LOG_LEVEL=info
+      - SQLPAD_WEB_LOG_LEVEL=warn
+      - SQLPAD_CONNECTIONS__mssql__name=Integration Platform DB
+      - SQLPAD_CONNECTIONS__mssql__driver=mssql
+      - SQLPAD_CONNECTIONS__mssql__host=db
+      - SQLPAD_CONNECTIONS__mssql__port=1433
+      - SQLPAD_CONNECTIONS__mssql__username=sa
+      - SQLPAD_CONNECTIONS__mssql__password=YourStrong@Passw0rd
+      - SQLPAD_CONNECTIONS__mssql__database=integration_platform
+      - SQLPAD_CONNECTIONS__mssql__trustServerCertificate=true
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
-  pg_data:
+  mssql_data:
+  prometheus_data:
+  grafana_data:

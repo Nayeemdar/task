@@ -29,6 +29,12 @@ opentelemetry-sdk==1.24.0
 opentelemetry-instrumentation-fastapi==0.45b0
 azure-monitor-opentelemetry-exporter==1.0.0b25
 
+# ── Observability (on-prem Prometheus /metrics endpoint) ──────────────────────
+prometheus_client==0.20.0
+# pywin32==306  # Windows only — install manually on Windows Server:
+#   pip install pywin32==306
+#   python Scripts\pywin32_postinstall.py -install
+
 # ── Utilities ─────────────────────────────────────────────────────────────────
 python-jose[cryptography]==3.3.0    # JWT tokens
 passlib[bcrypt]==1.7.4               # password hashing

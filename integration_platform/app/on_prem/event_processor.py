@@ -35,6 +35,7 @@ from app.core.event_bus import IntegrationEvent, get_event_bus
 from app.core.workflow_engine import WorkflowRun
 from app.db.bizops_session import BizOpsSessionLocal
 from app.models.bizops_models import BizOpsEventModel, BizOpsWorkflowRunModel
+from app.on_prem.metrics import BIZOPS_WRITE_ERRORS, BIZOPS_WRITES, EVENTS_RECEIVED
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,12 @@ class EventProcessor:
         Errors here are logged but never re-raised — audit failure must not
         block or crash the workflow execution running in parallel.
         """
+        EVENTS_RECEIVED.labels(
+            service_name=event.service_name,
+            event_type=event.event_type,
+            source=self._default_source,
+        ).inc()
+
         try:
             async with BizOpsSessionLocal() as session:
                 record = BizOpsEventModel(
@@ -98,12 +105,14 @@ class EventProcessor:
                 )
                 session.add(record)
                 await session.commit()
+            BIZOPS_WRITES.inc()
             logger.debug(
                 "BizOps audit row written: event_id=%s type=%s",
                 event.event_id, event.event_type,
             )
         except Exception as exc:
             # Log and continue — audit logging must NEVER block event processing
+            BIZOPS_WRITE_ERRORS.inc()
             logger.error(
                 "EventProcessor failed to persist event %s to BizOps SQL: %s",
                 event.event_id, exc,
