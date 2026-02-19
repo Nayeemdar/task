@@ -188,12 +188,23 @@ async def main(_external_stop_event: Optional[asyncio.Event] = None) -> None:
     workflow_engine = get_workflow_engine()
     logger.info("WorkflowEngine ready")
 
-    # ── 8. EventProcessor — subscribes to EventBus, writes BizOps SQL ─────────
+    # ── 8. Seed built-in workflows (idempotent re-registration on every start) ──
+    from app.integrations.workflows.jira_initiative_closes_sf_case import (
+        register as register_jira_sf,
+    )
+    from app.integrations.workflows.sf_contact_creates_docebo_user import (
+        register as register_sf_docebo,
+    )
+    register_jira_sf(workflow_engine)
+    register_sf_docebo(workflow_engine)
+    logger.info("Built-in workflows registered")
+
+    # ── 9. EventProcessor — subscribes to EventBus, writes BizOps SQL ─────────
     event_processor = EventProcessor(event_source="service_bus")
     event_processor.start()
     logger.info("EventProcessor started")
 
-    # ── 9. ServiceBusProcessor — pull messages from Azure Service Bus ──────────
+    # ── 10. ServiceBusProcessor — pull messages from Azure Service Bus ─────────
     sb_handler = _make_service_bus_handler(event_bus)
     sb_processor = ServiceBusProcessor(handler=sb_handler)
     sb_task = asyncio.create_task(
@@ -203,19 +214,19 @@ async def main(_external_stop_event: Optional[asyncio.Event] = None) -> None:
         "ServiceBusProcessor started (queue=%s)", settings.AZURE_SERVICE_BUS_QUEUE_NAME
     )
 
-    # ── 10. PollingService — on-prem polls cloud services directly ─────────────
+    # ── 11. PollingService — on-prem polls cloud services directly ─────────────
     polling = get_polling_service()
     await polling.start()
     logger.info("PollingService started (%d job(s))", len(polling._jobs))
 
-    # ── 11. HealthServer — /health + /metrics ─────────────────────────────────
+    # ── 12. HealthServer — /health + /metrics ─────────────────────────────────
     health_server = HealthServer(
         host=getattr(settings, "METRICS_HOST", "0.0.0.0"),
         port=getattr(settings, "METRICS_PORT", 9090),
     )
     health_task = asyncio.create_task(health_server.serve(), name="health-server")
 
-    # ── 12. Background metrics updater ────────────────────────────────────────
+    # ── 13. Background metrics updater ────────────────────────────────────────
     metrics_task = asyncio.create_task(
         _metrics_updater(start_time, event_bus), name="metrics-updater"
     )

@@ -199,6 +199,86 @@ class DoceboIntegration(BaseIntegration):
         )
         return ActionResult.ok(resp.json())
 
+    @action(
+        description=(
+            "Create a Docebo user and immediately assign one or more learning plans. "
+            "Designed for onboarding automation: receives a new contact/hire and "
+            "sets up their LMS account + training programme in a single step."
+        ),
+        input_schema={
+            "email": "string — learner's email address (also used as username if omitted)",
+            "first_name": "string",
+            "last_name": "string",
+            "username": "string (optional — defaults to email)",
+            "learning_plan_ids": "array of integers — Docebo learning plan IDs to enrol the user in",
+            "branch_id": "integer (optional) — Docebo org branch",
+            "role": "string (optional) — user | poweruser | superadmin",
+        },
+    )
+    async def create_user_and_assign_plans(self, payload: Dict) -> ActionResult:
+        """
+        1. Creates the Docebo user account.
+        2. Assigns every learning plan in learning_plan_ids in sequence.
+
+        If user creation fails the whole action fails immediately.
+        If a plan assignment fails it is logged and noted in plans_failed but
+        the other plans and the user record are not rolled back — this matches
+        the Docebo API's own behaviour (partial success is valid).
+
+        Returns:
+            {
+                "user_id":        <int>,
+                "email":          <str>,
+                "plans_assigned": [<int>, …],   # successfully enrolled
+                "plans_failed":   [{"plan_id": <int>, "error": "…"}, …],
+            }
+        """
+        # ── Step 1: create the user ───────────────────────────────────────────
+        user_result = await self.create_user({
+            "email": payload["email"],
+            "first_name": payload["first_name"],
+            "last_name": payload["last_name"],
+            "username": payload.get("username") or payload["email"],
+            **( {"role": payload["role"]} if payload.get("role") else {} ),
+            **( {"branch_id": payload["branch_id"]} if payload.get("branch_id") else {} ),
+        })
+        if not user_result.success:
+            return user_result
+
+        # Docebo returns {"success": true, "data": {"user_id": 123}}
+        raw = user_result.data or {}
+        user_id = (
+            raw.get("user_id")
+            or (raw.get("data") or {}).get("user_id")
+        )
+        if not user_id:
+            return ActionResult.fail("Docebo user created but user_id missing from response")
+
+        # ── Step 2: assign learning plans ────────────────────────────────────
+        plan_ids = payload.get("learning_plan_ids") or []
+        plans_assigned = []
+        plans_failed = []
+
+        for plan_id in plan_ids:
+            plan_result = await self.assign_learning_plan(
+                {"user_id": user_id, "learning_plan_id": plan_id}
+            )
+            if plan_result.success:
+                plans_assigned.append(plan_id)
+            else:
+                plans_failed.append({"plan_id": plan_id, "error": plan_result.error})
+                logger.warning(
+                    "Failed to assign learning plan %s to Docebo user %s: %s",
+                    plan_id, user_id, plan_result.error,
+                )
+
+        return ActionResult.ok({
+            "user_id": user_id,
+            "email": payload["email"],
+            "plans_assigned": plans_assigned,
+            "plans_failed": plans_failed,
+        })
+
     # ── Triggers ──────────────────────────────────────────────────────────────
 
     @trigger(

@@ -28,6 +28,7 @@ from app.api.v1 import events, health, integrations, webhooks, workflows
 from app.core.event_bus import get_event_bus
 from app.core.polling_service import get_polling_service
 from app.core.registry import get_registry
+from app.core.workflow_engine import get_workflow_engine
 from app.infrastructure.key_vault import get_key_vault
 from app.infrastructure.service_bus import get_bridge
 from app.infrastructure.telemetry import setup_telemetry
@@ -67,7 +68,19 @@ async def lifespan(app: FastAPI):
     registry = get_registry()
     registry.discover("app.integrations")
 
-    # 5. Service Bus bridge — subscribe EventBus → Azure Service Bus
+    # 5. Seed built-in workflows (idempotent — safe to re-register on every start)
+    from app.integrations.workflows.jira_initiative_closes_sf_case import (
+        register as register_jira_sf,
+    )
+    from app.integrations.workflows.sf_contact_creates_docebo_user import (
+        register as register_sf_docebo,
+    )
+    _wf_engine = get_workflow_engine()
+    register_jira_sf(_wf_engine)
+    register_sf_docebo(_wf_engine)
+    logger.info("Built-in workflows registered")
+
+    # 6. Service Bus bridge — subscribe EventBus → Azure Service Bus
     bridge = await get_bridge()
     event_bus = get_event_bus()
 
@@ -76,11 +89,11 @@ async def lifespan(app: FastAPI):
 
     event_bus.subscribe("*", _forward_to_service_bus)
 
-    # 6. EventBus worker loop
+    # 7. EventBus worker loop
     await event_bus.start()
     logger.info("EventBus started")
 
-    # 7. Polling service — skip in Azure Functions (Timer Trigger owns the schedule)
+    # 8. Polling service — skip in Azure Functions (Timer Trigger owns the schedule)
     polling = get_polling_service()
     if _RUNNING_IN_AZURE_FUNCTIONS:
         logger.info("Azure Functions detected — polling handled by Timer Trigger, skipping in-process loops")

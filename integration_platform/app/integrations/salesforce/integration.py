@@ -338,6 +338,55 @@ class SalesforceIntegration(BaseIntegration):
         return TriggerResult(events=records, cursor=cursor, has_more=len(records) == 100)
 
     @trigger(
+        description=(
+            "New Contact created in Salesforce (polling). "
+            "Emits one event per contact with flattened fields ready for downstream actions."
+        ),
+        trigger_type=TriggerType.POLLING,
+        poll_interval_seconds=300,
+    )
+    async def on_contact_created(self, context: Dict) -> TriggerResult:
+        """
+        Polls for Contacts created since the last run using a CreatedDate cursor.
+
+        Event payload per contact:
+            contact_id, email, first_name, last_name, title, phone,
+            account_id, created_date
+
+        The cursor is the ISO-8601 CreatedDate of the last seen record.
+        Set context["since"] to a recent datetime on first run to avoid
+        processing all historical contacts.
+        """
+        cursor = context.get("cursor") or context.get("since", "2000-01-01T00:00:00Z")
+        soql = (
+            "SELECT Id, FirstName, LastName, Email, Title, Phone, AccountId, CreatedDate "
+            "FROM Contact "
+            f"WHERE CreatedDate > {cursor} "
+            "ORDER BY CreatedDate ASC "
+            "LIMIT 50"
+        )
+        result = await self.query({"query": soql})
+        if not result.success:
+            return TriggerResult(events=[], has_more=False)
+
+        records = result.data.get("records", [])
+        events = [
+            {
+                "contact_id": r["Id"],
+                "email": r.get("Email", ""),
+                "first_name": r.get("FirstName", ""),
+                "last_name": r.get("LastName", ""),
+                "title": r.get("Title", ""),
+                "phone": r.get("Phone", ""),
+                "account_id": r.get("AccountId", ""),
+                "created_date": r.get("CreatedDate", ""),
+            }
+            for r in records
+        ]
+        new_cursor = records[-1]["CreatedDate"] if records else cursor
+        return TriggerResult(events=events, cursor=new_cursor, has_more=len(records) == 50)
+
+    @trigger(
         description="Inbound Salesforce outbound message or Platform Event webhook",
         trigger_type=TriggerType.WEBHOOK,
     )
