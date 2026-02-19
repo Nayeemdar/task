@@ -76,6 +76,7 @@ from app.db.session import engine
 from app.infrastructure.key_vault import get_key_vault
 from app.infrastructure.service_bus import ServiceBusProcessor
 from app.infrastructure.telemetry import setup_telemetry
+from app.integrations.catalog import IntegrationCatalog
 from app.models.bizops_models import BizOpsBase
 from app.models.db_models import Base
 from app.on_prem.event_processor import EventProcessor
@@ -184,20 +185,13 @@ async def main(_external_stop_event: Optional[asyncio.Event] = None) -> None:
     await event_bus.start()
     logger.info("EventBus started")
 
-    # ── 7. WorkflowEngine — auto-subscribes to EventBus on instantiation ──────
+    # ── 7. WorkflowEngine — handles workflows defined via the REST API ─────────
     workflow_engine = get_workflow_engine()
     logger.info("WorkflowEngine ready")
 
-    # ── 8. Seed built-in workflows (idempotent re-registration on every start) ──
-    from app.integrations.workflows.jira_initiative_closes_sf_case import (
-        register as register_jira_sf,
-    )
-    from app.integrations.workflows.sf_contact_creates_docebo_user import (
-        register as register_sf_docebo,
-    )
-    register_jira_sf(workflow_engine)
-    register_sf_docebo(workflow_engine)
-    logger.info("Built-in workflows registered")
+    # ── 8. Workflow catalog — code-first handler (add new integration = add one method)
+    catalog = IntegrationCatalog()
+    catalog.start()
 
     # ── 9. EventProcessor — subscribes to EventBus, writes BizOps SQL ─────────
     event_processor = EventProcessor(event_source="service_bus")
@@ -288,7 +282,8 @@ async def main(_external_stop_event: Optional[asyncio.Event] = None) -> None:
         pass
     logger.info("ServiceBusProcessor stopped")
 
-    # Unsubscribe EventProcessor (no new BizOps writes after this)
+    # Unsubscribe catalog handlers and EventProcessor
+    catalog.stop()
     event_processor.stop()
 
     # Drain and stop the EventBus (allows in-flight events to complete)
