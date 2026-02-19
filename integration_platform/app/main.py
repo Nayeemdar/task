@@ -12,7 +12,13 @@ Architecture highlights:
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
+
+# Azure Functions sets FUNCTIONS_WORKER_RUNTIME in every worker process.
+# When running there, the Timer Trigger in function_app.py owns the polling
+# schedule — starting the in-process asyncio loops here would duplicate work.
+_RUNNING_IN_AZURE_FUNCTIONS = bool(os.environ.get("FUNCTIONS_WORKER_RUNTIME"))
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -74,10 +80,13 @@ async def lifespan(app: FastAPI):
     await event_bus.start()
     logger.info("EventBus started")
 
-    # 7. Polling service — start background polling jobs
+    # 7. Polling service — skip in Azure Functions (Timer Trigger owns the schedule)
     polling = get_polling_service()
-    await polling.start()
-    logger.info("Polling service started")
+    if _RUNNING_IN_AZURE_FUNCTIONS:
+        logger.info("Azure Functions detected — polling handled by Timer Trigger, skipping in-process loops")
+    else:
+        await polling.start()
+        logger.info("Polling service started")
 
     logger.info(
         "=== Integration Platform ready | Services: %s ===",
@@ -88,7 +97,8 @@ async def lifespan(app: FastAPI):
 
     # ── Shutdown ──────────────────────────────────────────────────────────────
     logger.info("=== Integration Platform shutting down ===")
-    await polling.stop()
+    if not _RUNNING_IN_AZURE_FUNCTIONS:
+        await polling.stop()
     await event_bus.stop()
     await bridge.close()
     await kv.close()

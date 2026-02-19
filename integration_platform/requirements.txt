@@ -1,6 +1,9 @@
+# ── Azure Functions runtime ────────────────────────────────────────────────────
+azure-functions==1.21.3          # Azure Functions Python worker (ASGI middleware)
+
 # ── Web Framework ─────────────────────────────────────────────────────────────
 fastapi==0.111.0
-uvicorn[standard]==0.29.0
+uvicorn[standard]==0.29.0        # used for local dev only (func start uses its own server)
 python-multipart==0.0.9
 
 # ── Config ────────────────────────────────────────────────────────────────────
